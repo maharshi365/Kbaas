@@ -15,6 +15,10 @@
         "description": "Plain-language explanation of what belongs in this entity type.",
         "type": "string"
       },
+      "extractionFocus": {
+        "description": "Required guidance for extractors: capture meaningful facts and context about this entity type, not just names/titles.",
+        "type": "string"
+      },
       "examples": {
         "description": "Representative valid values for this entity type. Include strong canonical examples.",
         "type": "array",
@@ -47,6 +51,7 @@
     "required": [
       "name",
       "description",
+      "extractionFocus",
       "examples"
     ],
     "additionalProperties": false

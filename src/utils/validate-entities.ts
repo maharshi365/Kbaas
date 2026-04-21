@@ -4,10 +4,15 @@ import { z } from "zod";
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 
+const EVIDENCE_INSTRUCTION =
+  "Provide a direct quote or a tight source-grounded excerpt that supports the extracted facts for this entity.";
+
 const entitySchema = z.object({
   name: nonEmptyStringSchema,
   description: nonEmptyStringSchema,
+  extractionFocus: nonEmptyStringSchema,
   examples: z.array(nonEmptyStringSchema).min(1),
+  evidence: z.literal(EVIDENCE_INSTRUCTION).default(EVIDENCE_INSTRUCTION),
   rules: z.array(nonEmptyStringSchema).optional(),
   invalid: z.array(nonEmptyStringSchema).optional(),
   requiredEntities: z.array(nonEmptyStringSchema).optional(),
