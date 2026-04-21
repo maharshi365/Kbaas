@@ -18,7 +18,7 @@ kb/
     ├── _raw/                      # Copy of ingested source files
     ├── _outbox/                   # Pending markdown files (YOUR INPUT)
     │   └── <source>.md
-    ├── _archive/                  # Processed outbox files (moved here after processing)
+    ├── raw/                       # Processed outbox files (moved here after processing)
     └── data/                      # Obsidian knowledge base (YOUR OUTPUT)
         ├── <entity-type>/
         │   ├── _index.md
@@ -142,7 +142,7 @@ prompt: |
 
 After all steps complete:
 
-1. Move each processed markdown file from `_outbox/` to `_archive/` (use bash: `mv`).
+1. Move each processed markdown file from `_outbox/` to `_raw/` (use bash: `mv`).
 2. Use `kb-index` with action `rebuild` to refresh the manifest.
 3. Report a summary to the user:
    - How many source files were processed
@@ -171,7 +171,7 @@ If `_meta/wiki-rules.md` doesn't exist, proceed normally with no special structu
 
 ## Important Rules
 
-- NEVER modify files in `_outbox/` — only read from it (moving to `_archive/` is the only operation on outbox files).
+- NEVER modify files in `_outbox/` — only read from it (moving to `_raw/` is the only operation on outbox files).
 - NEVER modify `_meta/entities.json` or `_meta/wiki-rules.md` — these are user-managed configuration files.
 - ALWAYS read `_meta/entities.json` first to understand what entity types exist for a universe. Do not assume or hardcode entity types.
 - ALWAYS use the custom tools (`kb-index`, `kb-search`, `kb-backlinks`, `kb-update`) instead of manual glob/grep/read loops when checking or modifying KB state.
