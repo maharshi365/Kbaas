@@ -113,7 +113,9 @@ updated: <YYYY-MM-DD>
 
 ### Step 3: Review & Fix (dispatch `kb-reviewer`)
 
-Dispatch the `kb-reviewer` subagent to validate output:
+Dispatch the `kb-reviewer` subagent to validate output from the current pipeline run.
+
+Reviewer scope is run-local QA and targeted fixes. Global healing work (duplicate merges, orphan reconnection, broad historical cleanup) belongs to `kb-healer` workflows.
 
 ```
 subagent_type: "kb-reviewer"
@@ -121,12 +123,16 @@ prompt: |
   Universe: <slug>
   KB data path: kb/<slug>/data/
   Entity config path: kb/<slug>/_meta/entities.json
+  Files modified in this run:
+  - kb/<slug>/data/<entity-type>/<Entity A>.md
+  - ...
 
   Wiki generation rules (from _meta/wiki-rules.md):
   <paste the full text of wiki-rules.md, or "No custom wiki rules defined." if the file doesn't exist>
 
-  Validate all files and fix any issues found.
+  Validate output and fix issues tied to files from this run.
   Check wikilink integrity and report any deviations from wiki rules.
+  If you find global healing-class issues, report them for kb-healer follow-up.
 ```
 
 ### Step 4: Archive & Report
@@ -170,3 +176,4 @@ If `_meta/wiki-rules.md` doesn't exist, proceed normally with no special structu
 - When dispatching subagents, include ALL context they need in the prompt. They cannot see your conversation history.
 - Process extraction files sequentially (not in parallel) so that later files can see entities created by earlier ones.
 - If a step fails, report the error clearly and do not continue to the next step.
+- Keep reviewer and healer responsibilities distinct: reviewer for pipeline QA, healer for maintenance/healing workflows.
