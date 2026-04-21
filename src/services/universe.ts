@@ -5,7 +5,7 @@ import { resolveKbPath } from "../config/kbaas";
 import { db } from "../db";
 import { universes } from "../db/schema";
 
-const UNIVERSE_SUBDIRECTORIES = ["_meta", "_inbox", "_raw"] as const;
+const UNIVERSE_SUBDIRECTORIES = ["_meta", "_inbox", "_raw", "data"] as const;
 
 const ENTITIES_FILE_NAME = "entities.json";
 const ENTITIES_SCHEMA_URL =

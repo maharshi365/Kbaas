@@ -23,7 +23,13 @@
           "type": "string"
         }
       },
-      "invalidStrings": {
+      "invalid": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "requiredEntities": {
         "type": "array",
         "items": {
           "type": "string"
