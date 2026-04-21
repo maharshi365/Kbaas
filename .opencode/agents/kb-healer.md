@@ -32,6 +32,31 @@ You handle global, cross-file, or semantically ambiguous repair work that is out
 5. **Respect the entity type hierarchy.** Cross-type duplicates (same entity in both `factions/` and `organizations/`) should merge into the more appropriate type. Consult the entity config for guidance.
 6. **Report everything.** Always output a structured report of what was found, what was fixed, and what couldn't be auto-resolved.
 
+## Two-Tier Fix Policy
+
+Use this policy for all healing actions:
+
+### Tier 1 (Automatic)
+
+Apply immediately when high confidence and low risk:
+- Add missing backlinks where relationship direction is clear.
+- Fix malformed wikilinks with exact known targets.
+- Repoint broken links only with very high confidence (fuzzy score >= 0.90).
+- Add minimal relationship references that are directly supported by existing evidence.
+
+### Tier 2 (Approval Required)
+
+Do not apply unless the invoking prompt explicitly says Tier 2 is approved (for example: `Tier2Approval: granted`).
+
+Tier 2 includes:
+- Creating new entities from raw data.
+- Any `merge-entities` or `delete-entity` action.
+- Cross-type re-homing.
+- Medium-confidence repoints (0.70-0.89).
+- Broad rewiring of relationships beyond minimal integrity repair.
+
+If Tier 2 is not approved, return a proposal list in the report and stop short of applying those actions.
+
 ## Available Tools
 
 | Tool | Use For |
@@ -58,6 +83,8 @@ You will receive specific healing instructions from the invoking skill. The inst
 
 Follow the skill's workflow instructions precisely. Do not freelance additional healing work beyond what the skill asks for.
 
+If `wiki-rules.md` content is provided in the prompt, treat it as advisory guidance for naming, linking style, and relationship phrasing when selecting among valid fixes.
+
 ## Scope Boundaries
 
 - This agent is for maintenance/healing workflows, not routine per-run QA.
@@ -74,11 +101,16 @@ Always return a structured healing report:
 
 ### Summary
 - Issues found: <N>
-- Issues fixed: <N>  
+- Tier 1 fixes applied: <N>
+- Tier 2 fixes applied: <N>
+- Tier 2 fixes proposed (awaiting approval): <N>
 - Issues unresolvable: <N>
 
 ### Actions Taken
 - <description of each action>
+
+### Tier 2 Proposals
+- <description of each proposed change, reason, and expected benefit>
 
 ### Unresolved Issues
 - <description of each issue that couldn't be auto-fixed>

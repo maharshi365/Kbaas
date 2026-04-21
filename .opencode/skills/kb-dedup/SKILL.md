@@ -13,7 +13,14 @@ Detect duplicate entities in a knowledge base universe and merge them using the 
 /kb-dedup                              # dedup the default universe
 /kb-dedup <universe>                   # dedup a specific universe
 /kb-dedup <universe> --dry-run         # detect only, do not merge
+/kb-dedup <universe> --approve-tier2   # allow Tier 2 operations (merges/deletes)
 ```
+
+## Two-Tier Policy
+
+- Tier 1 fixes may run automatically.
+- Tier 2 fixes require explicit approval. In this workflow, Tier 2 is approved only when `--approve-tier2` is present.
+- When invoking `kb-healer`, pass `Tier2Approval: granted` only if `--approve-tier2` was provided; otherwise pass `Tier2Approval: not-granted`.
 
 ## Recommended Order
 
@@ -28,8 +35,9 @@ If running all three healing skills, run them in this order:
 
 1. Determine the universe slug. If not provided, read `.kbaas/kbaas.json` for the default, or list `kb/` directories.
 2. Read `kb/<universe>/_meta/entities.json` to understand entity types and their descriptions.
-3. Run `kb-index list` to get all entity names grouped by type.
-4. Run `kb-index stats` for a size overview.
+3. Read `kb/<universe>/_meta/wiki-rules.md` if it exists. Treat these rules as advisory constraints for naming and canonicalization decisions.
+4. Run `kb-index list` to get all entity names grouped by type.
+5. Run `kb-index stats` for a size overview.
 
 ### Step 1 — Build Candidate Duplicate Pairs
 

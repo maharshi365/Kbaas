@@ -12,7 +12,14 @@ Detect entities with zero incoming links (orphans) in a knowledge base universe 
 ```
 /kb-heal-orphans                       # heal orphans in the default universe
 /kb-heal-orphans <universe>            # heal orphans in a specific universe
+/kb-heal-orphans <universe> --approve-tier2  # allow Tier 2 operations (entity create/merge/delete/rehome)
 ```
+
+## Two-Tier Policy
+
+- Tier 1 fixes may run automatically.
+- Tier 2 fixes require explicit approval. In this workflow, Tier 2 is approved only when `--approve-tier2` is present.
+- When invoking `kb-healer`, pass `Tier2Approval: granted` only if `--approve-tier2` was provided; otherwise pass `Tier2Approval: not-granted`.
 
 ## Recommended Order
 
@@ -27,8 +34,9 @@ If running all three healing skills, run them in this order:
 
 1. Determine the universe slug. If not provided, read `.kbaas/kbaas.json` for the default, or list `kb/` directories.
 2. Read `kb/<universe>/_meta/entities.json` to understand entity types.
-3. Run `kb-index stats` for a KB size overview.
-4. Verify that `kb/<universe>/_raw/` exists and contains source files. If it doesn't exist, report that orphan healing requires raw data and stop.
+3. Read `kb/<universe>/_meta/wiki-rules.md` if it exists. Treat these rules as advisory constraints for naming, linking style, and relationship phrasing while healing.
+4. Run `kb-index stats` for a KB size overview.
+5. Verify that `kb/<universe>/_raw/` exists and contains source files. If it doesn't exist, report that orphan healing requires raw data and stop.
 
 ### Step 1 — Detect Orphans
 
