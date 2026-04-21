@@ -1,8 +1,15 @@
 {
   "name": "kbaas",
+  "description": "commander is a Knowledge base creator",
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "build": "bun build ./index.ts --compile --outfile ./kbaas"
+  },
+  "dependencies": {
+    "commander": "^14.0.3"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
