@@ -1,0 +1,50 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "kbaas": {
+      "mode": "primary",
+      "description": "Knowledge base builder. Processes entity extractions from _outbox/ into Obsidian-compatible markdown in data/.",
+      "prompt": ".opencode/agents/kbaas.md"
+    },
+    "kb-parser": {
+      "mode": "subagent",
+      "description": "Parses and normalizes entity extraction JSON files from the outbox. Read-only.",
+      "prompt": ".opencode/agents/kb-parser.md",
+      "permission": {
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny"
+      }
+    },
+    "kb-researcher": {
+      "mode": "subagent",
+      "description": "Searches existing KB files to determine create vs update actions for each entity. Read-only.",
+      "prompt": ".opencode/agents/kb-researcher.md",
+      "permission": {
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny"
+      }
+    },
+    "kb-writer": {
+      "mode": "subagent",
+      "description": "Creates and updates Obsidian markdown files for entities using the kb-update tool for validated writes.",
+      "prompt": ".opencode/agents/kb-writer.md",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny",
+        "write": "deny"
+      }
+    },
+    "kb-reviewer": {
+      "mode": "subagent",
+      "description": "Validates KB output: wikilinks, backlinks, deduplication, frontmatter consistency. Auto-fixes via kb-update tool.",
+      "prompt": ".opencode/agents/kb-reviewer.md",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny",
+        "write": "deny"
+      }
+    }
+  }
+}

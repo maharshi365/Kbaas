@@ -1,0 +1,4 @@
+# Allow OpenCode tools (ripgrep-based) to access the KB directory
+# even though kb/ is in .gitignore (we don't want to track KB content in git,
+# but subagents need read access to entity files via glob/grep/read tools).
+!kb/
