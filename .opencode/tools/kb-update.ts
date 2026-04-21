@@ -736,6 +736,8 @@ export default tool({
     "'upsert-entity' merges new evidence/sources/relationships into an existing entity (or creates if new) — " +
     "pass structured JSON instead of full markdown; " +
     "'write-index' validates index frontmatter then writes an _index.md file; " +
+    "'regenerate-index' automatically rebuilds _index.md for one or all entity type folders by reading entity files — " +
+    "pass path=kb/<slug>/data/<type>/ to regenerate one type, or omit path to regenerate all types; " +
     "'verify' validates an existing file, type folder, or entire KB without writing. " +
     "'merge-entities' merges two entity files into one (keeping the richer target), rewrites all references across the KB, and optionally deletes the source file; " +
     "'delete-entity' removes an entity file and cleans up all references to it across the KB. " +
@@ -746,11 +748,13 @@ export default tool({
       .string()
       .describe("Universe slug (e.g. 'willverse')"),
     action: tool.schema
-      .enum(["write-entity", "upsert-entity", "write-index", "verify", "merge-entities", "delete-entity"])
+      .enum(["write-entity", "upsert-entity", "write-index", "regenerate-index", "verify", "merge-entities", "delete-entity"])
       .describe(
         "Action: 'write-entity' to create/update an entity file with full markdown, " +
         "'upsert-entity' to merge new evidence into existing entity (or create if new) using structured JSON, " +
-        "'write-index' for _index.md, 'verify' for read-only validation, " +
+        "'write-index' for _index.md (requires content), " +
+        "'regenerate-index' to automatically rebuild _index.md from entity files (no content needed — pass path for one type or omit for all), " +
+        "'verify' for read-only validation, " +
         "'merge-entities' to merge source entity into target entity and rewrite all references, " +
         "'delete-entity' to remove an entity file and clean up references"
       ),
@@ -760,6 +764,7 @@ export default tool({
       .describe(
         "Relative file path for write/delete actions (e.g. 'kb/<slug>/data/characters/Entity Name.md'). " +
         "For verify: a specific file, or a type folder (e.g. 'kb/<slug>/data/characters/'), or omit to verify the whole KB. " +
+        "For regenerate-index: a type folder (e.g. 'kb/<slug>/data/characters/') to regenerate one type's index, or omit to regenerate all types. " +
         "For delete-entity: the entity file to remove."
       ),
     content: tool.schema
@@ -780,6 +785,7 @@ export default tool({
         "\"newEvidence\": \"> quote from chapter 4\", " +
         "\"newRelated\": {\"locations\": [\"[[Sacred Valley]]\"]}, " +
         "\"overviewAddition\": \"Additional context to incorporate into the overview.\"}. " +
+        "Legacy alias \"related\" is also accepted for compatibility. " +
         "The tool handles reading existing file, merging, and writing."
       ),
     sourcePath: tool.schema
@@ -927,6 +933,7 @@ export default tool({
         newSource: string;
         newEvidence: string;
         newRelated?: Record<string, string[]>;
+        related?: Record<string, string[]>;
         overviewAddition?: string;
       };
       try {
@@ -941,6 +948,11 @@ export default tool({
           success: false,
           error: "upsertData must include entityType, name, newSource, and newEvidence.",
         });
+      }
+
+      // Backward compatibility: accept `related` as alias for `newRelated`
+      if (!upsert.newRelated && upsert.related && isRecord(upsert.related)) {
+        upsert.newRelated = upsert.related;
       }
 
       const validTypes = getValidEntityTypes(config);
@@ -1626,6 +1638,193 @@ export default tool({
           referencesCleanedFrom: filesModified,
           details,
           message: `Deleted ${relPath}. Cleaned references from ${filesModified} files.`,
+        },
+        null,
+        2
+      );
+    }
+
+    // -----------------------------------------------------------------------
+    // REGENERATE-INDEX action — auto-rebuilds _index.md from entity files
+    // -----------------------------------------------------------------------
+    if (action === "regenerate-index") {
+      const universePath = resolveUniversePath(cwd, universe);
+      const dataPath = join(universePath, "data");
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Build a map of entityType -> description from config
+      const entityDescMap: Record<string, string> = {};
+      for (const typeConfig of config.value) {
+        entityDescMap[typeConfig.name] = typeConfig.description || "";
+      }
+
+      // Determine which type folders to regenerate
+      let typeFolders: string[];
+      if (relPath) {
+        // Single type folder provided
+        const absTypePath = join(cwd, relPath);
+        if (!existsSync(absTypePath)) {
+          return JSON.stringify({
+            success: false,
+            error: `Type folder not found: ${relPath}`,
+          });
+        }
+        typeFolders = [basename(absTypePath.replace(/[/\\]$/, ""))];
+      } else {
+        // Regenerate all type folders under data/
+        if (!existsSync(dataPath)) {
+          return JSON.stringify({
+            success: true,
+            action: "regenerate-index",
+            message: `No data/ directory for universe '${universe}'. Nothing to regenerate.`,
+            results: [],
+          });
+        }
+        typeFolders = getEntityTypeDirsFromPath(dataPath);
+      }
+
+      const results: Array<{
+        entityType: string;
+        indexPath: string;
+        count: number;
+        written: boolean;
+        error?: string;
+        warnings?: ValidationError[];
+      }> = [];
+
+      for (const entityType of typeFolders) {
+        const typeDir = join(dataPath, entityType);
+        if (!existsSync(typeDir)) {
+          results.push({ entityType, indexPath: "", count: 0, written: false, error: `Directory not found: ${typeDir}` });
+          continue;
+        }
+
+        // Collect entity files (exclude _index.md and other _ files)
+        const entityFiles = readdirSync(typeDir)
+          .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
+          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+        if (entityFiles.length === 0) {
+          results.push({ entityType, indexPath: "", count: 0, written: false, error: `No entity files in ${entityType}/` });
+          continue;
+        }
+
+        // Build table rows
+        const rows: Array<{ name: string; related: string; sources: string }> = [];
+
+        for (const file of entityFiles) {
+          const filePath = join(typeDir, file);
+          let fileContent: string;
+          try {
+            fileContent = readFileSync(filePath, "utf-8");
+          } catch {
+            continue;
+          }
+
+          let fileParsed: { attributes: Record<string, unknown>; body: string };
+          try {
+            fileParsed = fm<Record<string, unknown>>(fileContent);
+          } catch {
+            continue;
+          }
+
+          const attrs = fileParsed.attributes;
+          const name = typeof attrs.name === "string" ? attrs.name : basename(file, ".md");
+
+          // Collect related wikilinks (flatten all related arrays, dedupe, max 5)
+          const relatedLinks: string[] = [];
+          if (isRecord(attrs.related)) {
+            for (const vals of Object.values(attrs.related as Record<string, unknown>)) {
+              if (isStringArray(vals)) {
+                for (const v of vals) {
+                  if (!relatedLinks.includes(v)) relatedLinks.push(v);
+                }
+              }
+            }
+          }
+          const relatedStr = relatedLinks.length === 0
+            ? ""
+            : relatedLinks.slice(0, 5).join(", ") + (relatedLinks.length > 5 ? ", ..." : "");
+
+          // Collect sources (max 3)
+          const sources = isStringArray(attrs.sources) ? attrs.sources : [];
+          const sourcesStr = sources.length === 0
+            ? ""
+            : sources.slice(0, 3).join(", ") + (sources.length > 3 ? ", ..." : "");
+
+          rows.push({ name, related: relatedStr, sources: sourcesStr });
+        }
+
+        const count = rows.length;
+        // Title-case the entity type (replace hyphens/underscores with spaces, title case each word)
+        const title = entityType
+          .replace(/[-_]/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+        const description = entityDescMap[entityType] || "";
+
+        const tableRows = rows
+          .map((r) => `| [[${r.name}]] | ${r.related} | ${r.sources} |`)
+          .join("\n");
+
+        const indexContent = [
+          "---",
+          `type: index`,
+          `entityType: ${entityType}`,
+          `count: ${count}`,
+          `updated: "${today}"`,
+          "---",
+          "",
+          `# ${title}`,
+          "",
+          description,
+          "",
+          "| Name | Related To | Sources |",
+          "|------|-----------|---------|",
+          tableRows,
+          "",
+        ].join("\n");
+
+        // Validate the generated index
+        let indexParsed: { attributes: Record<string, unknown>; body: string };
+        try {
+          indexParsed = fm<Record<string, unknown>>(indexContent);
+        } catch (e) {
+          results.push({ entityType, indexPath: "", count, written: false, error: `Generated index has malformed frontmatter: ${e}` });
+          continue;
+        }
+
+        const indexErrors = validateIndexFrontmatter(indexParsed.attributes, config);
+        const hardIndexErrors = indexErrors.filter((e) => e.severity === "error");
+        const indexWarnings = indexErrors.filter((e) => e.severity === "warning");
+
+        if (hardIndexErrors.length > 0) {
+          results.push({ entityType, indexPath: "", count, written: false, error: `Validation failed: ${hardIndexErrors.map((e) => e.message).join("; ")}` });
+          continue;
+        }
+
+        // Write _index.md
+        const indexPath = join(typeDir, "_index.md");
+        const indexRelPath = relative(cwd, indexPath).replace(/\\/g, "/");
+        try {
+          writeFileSync(indexPath, indexContent, "utf-8");
+          results.push({ entityType, indexPath: indexRelPath, count, written: true, warnings: indexWarnings.length > 0 ? indexWarnings : undefined });
+        } catch (e) {
+          results.push({ entityType, indexPath: indexRelPath, count, written: false, error: `Failed to write: ${e}` });
+        }
+      }
+
+      const writtenCount = results.filter((r) => r.written).length;
+      const failedCount = results.filter((r) => !r.written).length;
+
+      return JSON.stringify(
+        {
+          success: failedCount === 0,
+          action: "regenerate-index",
+          universe,
+          indexesWritten: writtenCount,
+          indexesFailed: failedCount,
+          results,
+          message: `Regenerated ${writtenCount} index file(s).${failedCount > 0 ? ` ${failedCount} failed.` : ""}`,
         },
         null,
         2

@@ -17,9 +17,10 @@ Detect entities with zero incoming links (orphans) in a knowledge base universe 
 
 ## Two-Tier Policy
 
-- Tier 1 fixes may run automatically.
+- Tier 1 fixes must run automatically for high-confidence, low-risk reconnections discovered in this run.
 - Tier 2 fixes require explicit approval. In this workflow, Tier 2 is approved only when `--approve-tier2` is present.
 - When invoking `kb-healer`, pass `Tier2Approval: granted` only if `--approve-tier2` was provided; otherwise pass `Tier2Approval: not-granted`.
+- Never claim "Tier 1 applied" unless at least one `kb-update` write action succeeded.
 
 ## Recommended Order
 
@@ -106,6 +107,11 @@ Compare before vs after:
 - How many orphans were resolved?
 - Are any remaining orphans expected (truly isolated entities)?
 
+Also collect execution counters for Tier 1 writes:
+- `kb-update` writes attempted
+- successful writes (`"success": true`)
+- failed writes (with top error reasons)
+
 ### Step 5 — Report
 
 Output the orphan healing report:
@@ -118,6 +124,9 @@ Output the orphan healing report:
 - Orphans reconnected: <N>
 - Orphans self-sufficient (backlinks added): <N>
 - Orphans unresolvable: <N>
+- Tier 1 write attempts: <N>
+- Tier 1 write successes: <N>
+- Tier 1 write failures: <N>
 
 ### Reconnections Made
 - <OrphanType>/<OrphanName>:
@@ -136,4 +145,8 @@ Output the orphan healing report:
 
 ### Post-Healing Stats
 - Orphans: <before> → <after>
+
+### Execution Notes
+- If `Tier 1 write successes = 0`, explicitly state: "Tier 1 attempted but not applied" and list top failure reasons.
+- Do not present attempted actions as completed actions.
 ```

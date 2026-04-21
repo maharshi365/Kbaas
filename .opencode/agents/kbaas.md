@@ -43,12 +43,13 @@ Use `kbPath` (default: `kb/`) to resolve universe paths.
 
 ## Custom Tools Available
 
-You have four custom tools:
+You have five custom tools:
 
 1. **`kb-index`** — Query the KB index. Actions: `list` (entity names by type), `stats` (summary), `rebuild` (force refresh).
 2. **`kb-search`** — Search for an entity by name. Supports exact, alias, case-insensitive, and fuzzy matching.
-3. **`kb-backlinks`** — Check wikilink integrity. Actions: `check` (single file), `check-all` (entire KB).
-4. **`kb-update`** — Validated write tool. Actions: `write-entity` (create/update entity files), `write-index` (create/update index files), `verify` (read-only validation).
+3. **`kb-search-batch`** — Search multiple entity names in one call (preferred over repeated `kb-search` calls during extraction/linking).
+4. **`kb-backlinks`** — Check wikilink integrity. Actions: `check` (single file), `check-all` (entire KB).
+5. **`kb-update`** — Validated write tool. Actions: `write-entity` (create/update entity files), `write-index` (create/update index files with explicit content), `regenerate-index` (auto-rebuild indexes from entity files — no content needed), `verify` (read-only validation).
 
 Use these tools to understand KB state before dispatching subagents.
 
@@ -91,28 +92,20 @@ prompt: |
 
 Process files **one at a time, sequentially**. Each dispatch handles a single markdown file end-to-end (read → extract → search → write). Wait for each to complete before dispatching the next, so later files can find entities created by earlier ones.
 
-### Step 2: Generate Index Files
+### Step 2: Regenerate Index Files
 
-After all source markdown files are processed, regenerate `_index.md` for each entity type folder that has entities. Use `kb-update write-index` for each.
+After all source markdown files are processed, call `kb-update regenerate-index` to rebuild `_index.md` for every entity type folder:
 
-Read each entity type folder to build the index table. The index format:
-
-```markdown
----
-type: index
-entityType: <entity-type>
-count: <number of entities>
-updated: <YYYY-MM-DD>
----
-
-# <Entity Type Name (Title Case)>
-
-<One sentence description from entities.json "description" field.>
-
-| Name | Related To | Sources |
-|------|-----------|---------|
-| [[<Entity Name>]] | [[<Related 1>]], [[<Related 2>]] | <source-1>, <source-2> |
 ```
+kb-update universe=<slug> action=regenerate-index
+```
+
+To regenerate a single type's index (e.g. after a targeted update):
+```
+kb-update universe=<slug> action=regenerate-index path=kb/<slug>/data/<entity-type>/
+```
+
+The tool reads all entity files in each type folder, builds the index table automatically, and writes the validated `_index.md`. No manual content or table construction needed.
 
 ### Step 3: Review & Fix (dispatch `kb-reviewer`)
 
@@ -174,7 +167,7 @@ If `_meta/wiki-rules.md` doesn't exist, proceed normally with no special structu
 - NEVER modify files in `_outbox/` — only read from it (moving to `_raw/` is the only operation on outbox files).
 - NEVER modify `_meta/entities.json` or `_meta/wiki-rules.md` — these are user-managed configuration files.
 - ALWAYS read `_meta/entities.json` first to understand what entity types exist for a universe. Do not assume or hardcode entity types.
-- ALWAYS use the custom tools (`kb-index`, `kb-search`, `kb-backlinks`, `kb-update`) instead of manual glob/grep/read loops when checking or modifying KB state.
+- ALWAYS use the custom tools (`kb-index`, `kb-search`, `kb-search-batch`, `kb-backlinks`, `kb-update`) instead of manual glob/grep/read loops when checking or modifying KB state.
 - ALWAYS dispatch subagents via the Task tool — do not try to do everything in one context.
 - When dispatching subagents, include ALL context they need in the prompt. They cannot see your conversation history.
 - Process markdown files sequentially (not in parallel) so that later files can see entities created by earlier ones.

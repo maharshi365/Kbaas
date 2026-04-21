@@ -25,7 +25,6 @@ You will receive:
 - **`kb-update`** — Write validated entity files. Actions:
   - `upsert-entity` — **preferred for updates**: pass structured JSON via `upsertData`, the tool handles reading existing file, merging evidence/sources/relationships, and writing. No need to read the file yourself.
   - `write-entity` — for full markdown writes (path can be omitted — auto-derived from frontmatter entityType + name)
-  - `write-index` — for index files
 - **`kb-search`** — Search for a single entity. Only use if you need to look up one entity outside the batch.
 - **`read`** — Read files (source markdown, existing files only for exceptional troubleshooting).
 

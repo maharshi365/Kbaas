@@ -119,7 +119,14 @@ For each entity type folder that has an `_index.md`:
 - Verify the `count` in frontmatter matches the actual number of entity files in the folder
 - Verify every entity file in the folder has a row in the index table
 - Verify no rows reference non-existent files
-- Fix any discrepancies by regenerating and writing via `kb-update write-index`
+- Fix any discrepancies by regenerating via `kb-update regenerate-index`:
+  ```
+  kb-update universe=<slug> action=regenerate-index path=kb/<slug>/data/<entity-type>/
+  ```
+  Or regenerate all at once:
+  ```
+  kb-update universe=<slug> action=regenerate-index
+  ```
 
 ### 7. Detect and Merge Tiny Stub Articles (Run-Local Only)
 

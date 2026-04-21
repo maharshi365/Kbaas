@@ -44,6 +44,11 @@ Apply immediately when high confidence and low risk:
 - Repoint broken links only with very high confidence (fuzzy score >= 0.90).
 - Add minimal relationship references that are directly supported by existing evidence.
 
+Execution gate:
+- If Tier 1 candidates are present, attempt Tier 1 in the same run.
+- Never report "Tier 1 fixes applied" unless at least one write operation succeeded.
+- If all Tier 1 writes fail, report "Tier 1 attempted but not applied" with top failure reasons.
+
 ### Tier 2 (Approval Required)
 
 Do not apply unless the invoking prompt explicitly says Tier 2 is approved (for example: `Tier2Approval: granted`).
@@ -105,6 +110,9 @@ Always return a structured healing report:
 - Tier 2 fixes applied: <N>
 - Tier 2 fixes proposed (awaiting approval): <N>
 - Issues unresolvable: <N>
+- Tier 1 write attempts: <N>
+- Tier 1 write successes: <N>
+- Tier 1 write failures: <N>
 
 ### Actions Taken
 - <description of each action>
