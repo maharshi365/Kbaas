@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { inArray } from "drizzle-orm";
 import { resolveKbPath } from "../config/kbaas";
@@ -6,6 +6,15 @@ import { db } from "../db";
 import { universes } from "../db/schema";
 
 const UNIVERSE_SUBDIRECTORIES = ["_meta", "_inbox", "_raw"] as const;
+
+const ENTITIES_FILE_NAME = "entities.json";
+const ENTITIES_SCHEMA_URL =
+  "https://raw.githubusercontent.com/maharshi365/Kbaas/main/schemas/entities.schema.json";
+
+const ENTITIES_FILE_TEMPLATE = {
+  schema: ENTITIES_SCHEMA_URL,
+  value: [] as unknown[],
+};
 
 type CreateUniverseOptions = {
   name: string;
@@ -31,6 +40,11 @@ export const createUniverse = async (
   for (const subdirectory of UNIVERSE_SUBDIRECTORIES) {
     mkdirSync(join(universeDirectory, subdirectory), { recursive: true });
   }
+
+  writeFileSync(
+    join(universeDirectory, "_meta", ENTITIES_FILE_NAME),
+    `${JSON.stringify(ENTITIES_FILE_TEMPLATE, null, 2)}\n`,
+  );
 };
 
 export const deleteUniversesBySlugs = async (
