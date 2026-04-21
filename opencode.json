@@ -25,6 +25,16 @@
         "edit": "deny",
         "write": "deny"
       }
+    },
+    "kb-healer": {
+      "mode": "subagent",
+      "description": "Heals KB integrity issues — broken links, missing backlinks, duplicate entities, orphaned files. Invoked by healing skills with specific instructions.",
+      "prompt": ".opencode/agents/kb-healer.md",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny",
+        "write": "deny"
+      }
     }
   }
 }

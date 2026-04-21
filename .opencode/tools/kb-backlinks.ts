@@ -143,15 +143,15 @@ function buildEntityNameMap(
 
 export default tool({
   description:
-    "Check wikilink integrity in the knowledge base. For a single file, reports outgoing links, incoming links (backlinks), and missing backlinks. For check-all, scans every entity file and reports all broken links and missing backlinks across the entire KB.",
+    "Check wikilink integrity in the knowledge base. For a single file, reports outgoing links, incoming links (backlinks), and missing backlinks. For check-all, scans every entity file and reports all broken links and missing backlinks across the entire KB. For find-orphans, returns entities with zero incoming links.",
   args: {
     universe: tool.schema
       .string()
       .describe("Universe slug (e.g. 'willverse')"),
     action: tool.schema
-      .enum(["check", "check-all"])
+      .enum(["check", "check-all", "find-orphans"])
       .describe(
-        "Action: 'check' for a single file, 'check-all' to scan the whole KB."
+        "Action: 'check' for a single file, 'check-all' to scan the whole KB, 'find-orphans' to find entities with zero incoming links."
       ),
     file: tool.schema
       .string()
@@ -174,7 +174,9 @@ export default tool({
     // Build the global entity name -> path map
     const nameMap = buildEntityNameMap(cwd, dataPath);
 
-    // Collect all entity files
+    // Collect all entity files.
+    // IMPORTANT: _index.md and other _-prefixed files are excluded so that
+    // auto-generated index table links are never counted as real backlinks.
     const allFiles: { name: string; entityType: string; absPath: string; relPath: string }[] = [];
     const entityTypes = getEntityTypeDirs(dataPath);
     for (const entityType of entityTypes) {
@@ -270,7 +272,75 @@ export default tool({
       );
     }
 
+    // -----------------------------------------------------------------------
+    // action === "find-orphans"
+    // Returns entities with zero incoming links from other entity files.
+    // NOTE: _index.md files are excluded from scanning (files starting with
+    // "_" are filtered out by getEntityTypeDirs and the file listing).
+    // Links from _index.md tables do NOT count as incoming links.
+    // -----------------------------------------------------------------------
+    if (action === "find-orphans") {
+      // Build incoming link counts for every entity
+      const incomingCount = new Map<string, number>(); // relPath -> count
+      for (const entry of allFiles) {
+        incomingCount.set(entry.relPath, 0);
+      }
+
+      for (const entry of allFiles) {
+        const wikilinks = extractWikilinks(entry.absPath);
+        for (const target of wikilinks) {
+          const resolved = nameMap.get(target.toLowerCase());
+          if (resolved && resolved.path !== entry.relPath) {
+            incomingCount.set(
+              resolved.path,
+              (incomingCount.get(resolved.path) ?? 0) + 1
+            );
+          }
+        }
+      }
+
+      const orphans: {
+        path: string;
+        name: string;
+        entityType: string;
+        outgoingLinks: number;
+        sources: string[];
+      }[] = [];
+
+      for (const entry of allFiles) {
+        if ((incomingCount.get(entry.relPath) ?? 0) === 0) {
+          const attrs = parseFrontmatter(entry.absPath);
+          const outgoing = extractWikilinks(entry.absPath);
+          orphans.push({
+            path: entry.relPath,
+            name: entry.name,
+            entityType: entry.entityType,
+            outgoingLinks: outgoing.length,
+            sources: (attrs as Record<string, unknown>)?.sources as string[] ?? [],
+          });
+        }
+      }
+
+      return JSON.stringify(
+        {
+          action: "find-orphans",
+          universe,
+          totalFiles: allFiles.length,
+          orphanCount: orphans.length,
+          orphans,
+          summary: `${orphans.length} orphaned entities out of ${allFiles.length} total (zero incoming links)`,
+        },
+        null,
+        2
+      );
+    }
+
+    // -----------------------------------------------------------------------
     // action === "check-all"
+    // NOTE: Only entity .md files are scanned — _index.md and other files
+    // starting with "_" are excluded. Links from auto-generated index tables
+    // do NOT count as real backlinks.
+    // -----------------------------------------------------------------------
     let totalLinks = 0;
     const brokenLinks: { file: string; target: string }[] = [];
     const allMissingBacklinks: MissingBacklink[] = [];
