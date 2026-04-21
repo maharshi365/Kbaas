@@ -73,3 +73,34 @@ export const validateEntitiesFile = (filePath: string): EntitiesFile => {
 
   return result.data;
 };
+
+export const buildExtractionSchema = (entitiesFile: EntitiesFile) => {
+  const [firstEntityName, ...restEntityNames] = entitiesFile.value.map(
+    (entity) => entity.name,
+  );
+  const entityTypeSchema = z.enum([
+    firstEntityName,
+    ...restEntityNames,
+  ] as [string, ...string[]]);
+
+  const optionalEntityFields: Record<string, z.ZodOptional<z.ZodArray<z.ZodString>>> = {};
+  for (const entity of entitiesFile.value) {
+    for (const req of entity.requiredEntities ?? []) {
+      optionalEntityFields[req] ??= z
+        .array(z.string().trim().min(1))
+        .min(1)
+        .optional();
+    }
+  }
+
+  return z.object({
+    entities: z.array(
+      z.object({
+        entityType: entityTypeSchema,
+        value: z.string().trim().min(1),
+        evidence: z.string().trim().min(1),
+        ...optionalEntityFields,
+      }),
+    ),
+  });
+};

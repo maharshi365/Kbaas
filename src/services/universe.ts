@@ -12,11 +12,10 @@ import { parse, join, resolve } from "node:path";
 import { Output, generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { inArray } from "drizzle-orm";
-import { z } from "zod";
 import { resolveKbPath } from "../config/kbaas";
 import { db } from "../db";
 import { universes } from "../db/schema";
-import { validateEntitiesFile } from "../utils/validate-entities";
+import { buildExtractionSchema, validateEntitiesFile } from "../utils/validate-entities";
 
 const UNIVERSE_SUBDIRECTORIES = ["_meta", "_outbox", "_raw", "data"] as const;
 
@@ -215,23 +214,7 @@ export const loadUniverseFile = async (
     }
   }
 
-  const [firstEntityName, ...restEntityNames] = entitiesFile.value.map(
-    (entity) => entity.name,
-  );
-  const entityTypeSchema = z.enum([
-    firstEntityName,
-    ...restEntityNames,
-  ] as [string, ...string[]]);
-
-  const extractionSchema = z.object({
-    entities: z.array(
-      z.object({
-        entityType: entityTypeSchema,
-        value: z.string().trim().min(1),
-        evidence: z.string().trim().min(1),
-      }),
-    ),
-  });
+  const extractionSchema = buildExtractionSchema(entitiesFile);
 
   const rawDirectory = join(universeDirectory, "_raw");
   const outboxDirectory = join(universeDirectory, "_outbox");
