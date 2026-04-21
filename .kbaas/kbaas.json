@@ -1,3 +1,4 @@
 {
-  "databasePath": "meta/sqlite.db"
+  "databasePath": "meta/sqlite.db",
+  "kbPath": "kb/"
 }

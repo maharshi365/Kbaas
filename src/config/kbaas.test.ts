@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   DEFAULT_DATABASE_PATH,
+  DEFAULT_KB_PATH,
   loadKbaasConfig,
   resolveDatabasePath,
+  resolveKbPath,
 } from "./kbaas";
 
 const createdDirs: string[] = [];
@@ -45,11 +47,26 @@ describe("kbaas config", () => {
     expect(resolveDatabasePath({ cwd })).toBe("custom/db.sqlite");
   });
 
+  test("loads and trims kbPath", () => {
+    const cwd = makeProjectDir();
+    writeConfig(cwd, JSON.stringify({ kbPath: "  docs/kb  " }));
+
+    expect(loadKbaasConfig({ cwd })).toEqual({ kbPath: "docs/kb" });
+    expect(resolveKbPath({ cwd })).toBe("docs/kb");
+  });
+
   test("uses default database path when databasePath is omitted", () => {
     const cwd = makeProjectDir();
     writeConfig(cwd, JSON.stringify({}));
 
     expect(resolveDatabasePath({ cwd })).toBe(DEFAULT_DATABASE_PATH);
+  });
+
+  test("uses default kb path when kbPath is omitted", () => {
+    const cwd = makeProjectDir();
+    writeConfig(cwd, JSON.stringify({}));
+
+    expect(resolveKbPath({ cwd })).toBe(DEFAULT_KB_PATH);
   });
 
   test("throws for invalid json", () => {
@@ -70,9 +87,27 @@ describe("kbaas config", () => {
     );
   });
 
+  test("throws when kbPath is not a string", () => {
+    const cwd = makeProjectDir();
+    writeConfig(cwd, JSON.stringify({ kbPath: 123 }));
+
+    expect(() => loadKbaasConfig({ cwd })).toThrow(
+      "Invalid .kbaas/kbaas.json: Invalid input: expected string, received number.",
+    );
+  });
+
   test("throws when databasePath is empty", () => {
     const cwd = makeProjectDir();
     writeConfig(cwd, JSON.stringify({ databasePath: "   " }));
+
+    expect(() => loadKbaasConfig({ cwd })).toThrow(
+      "Invalid .kbaas/kbaas.json: Too small: expected string to have >=1 characters.",
+    );
+  });
+
+  test("throws when kbPath is empty", () => {
+    const cwd = makeProjectDir();
+    writeConfig(cwd, JSON.stringify({ kbPath: "   " }));
 
     expect(() => loadKbaasConfig({ cwd })).toThrow(
       "Invalid .kbaas/kbaas.json: Too small: expected string to have >=1 characters.",

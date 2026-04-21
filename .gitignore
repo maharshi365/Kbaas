@@ -30,6 +30,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 *.tsbuildinfo
 meta/*.db
 meta/*.db-*
+.kbaas/kbaas.json
 
 # IntelliJ based IDEs
 .idea

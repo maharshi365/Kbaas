@@ -1,5 +1,8 @@
 import { Command } from "commander";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { inArray } from "drizzle-orm";
+import { resolveKbPath } from "../../../config/kbaas";
 import { db } from "../../../db";
 import { universes } from "../../../db/schema";
 
@@ -43,6 +46,11 @@ export const deleteUniverseCommand = new Command("delete")
     const missingSlugs = slugs.filter((slug) => !foundSlugs.includes(slug));
 
     await db.delete(universes).where(inArray(universes.slug, foundSlugs));
+
+    const kbRoot = resolveKbPath();
+    for (const slug of foundSlugs) {
+      rmSync(join(kbRoot, slug), { recursive: true, force: true });
+    }
 
     console.log(`Deleted universes: ${foundSlugs.join(", ")}.`);
 

@@ -3,16 +3,19 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 
 export const DEFAULT_DATABASE_PATH = "meta/sqlite.db";
+export const DEFAULT_KB_PATH = "kb/";
 
 const CONFIG_DIRECTORY = ".kbaas";
 const CONFIG_FILE = "kbaas.json";
 
 type KbaasConfig = {
   databasePath?: string;
+  kbPath?: string;
 };
 
 const kbaasConfigSchema = z.looseObject({
   databasePath: z.string().trim().min(1).optional(),
+  kbPath: z.string().trim().min(1).optional(),
 });
 
 const configFilePath = (cwd: string): string =>
@@ -51,12 +54,17 @@ export const loadKbaasConfig = (
 
   return {
     databasePath: parsedConfig.data.databasePath,
+    kbPath: parsedConfig.data.kbPath,
   };
 };
 
 export const resolveDatabasePath = (
   options: LoadKbaasConfigOptions = {},
 ): string => loadKbaasConfig(options).databasePath ?? DEFAULT_DATABASE_PATH;
+
+export const resolveKbPath = (
+  options: LoadKbaasConfigOptions = {},
+): string => loadKbaasConfig(options).kbPath ?? DEFAULT_KB_PATH;
 
 export const ensureDatabaseDirectory = (databasePath: string): void => {
   mkdirSync(dirname(databasePath), { recursive: true });
