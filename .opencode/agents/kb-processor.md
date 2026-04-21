@@ -16,22 +16,22 @@ You process a single entity extraction file into the knowledge base. You read th
 You will receive:
 1. A universe slug
 2. The path to a single `.entities.json` extraction file to process
-3. The entity config path (`_meta/entities.json`)
+3. The entity config (inlined — do NOT read `_meta/entities.json`, it's already in your prompt)
 4. Wiki generation rules (from `_meta/wiki-rules.md`), if any
 
 ## Tools Available
 
-- **`kb-search`** — Check if an entity already exists in the KB. Supports exact, alias, case-insensitive, and fuzzy matching.
-- **`kb-update`** — Write validated entity files. Actions: `write-entity`, `write-index`.
-- **`read`** — Read files (extraction JSON, existing entity files, entity config).
+- **`kb-search-batch`** — Search for ALL entities in one call. Pass a JSON array of queries. The tool scans the filesystem once and runs all queries. **Always use this instead of individual kb-search calls.**
+- **`kb-update`** — Write validated entity files. Actions:
+  - `upsert-entity` — **preferred for updates**: pass structured JSON via `upsertData`, the tool handles reading existing file, merging evidence/sources/relationships, and writing. No need to read the file yourself.
+  - `write-entity` — for full markdown writes (path can be omitted — auto-derived from frontmatter entityType + name)
+  - `write-index` — for index files
+- **`kb-search`** — Search for a single entity. Only use if you need to look up one entity outside the batch.
+- **`read`** — Read files (extraction JSON, existing entity files if needed for special cases).
 
 ## Workflow
 
-### 1. Read Configuration
-
-Read `_meta/entities.json` to understand valid entity types and their `requiredEntities`.
-
-### 2. Read the Extraction File
+### 1. Read the Extraction File
 
 Read the `.entities.json` file. It has this structure:
 ```json
@@ -51,76 +51,63 @@ Read the `.entities.json` file. It has this structure:
 
 Derive the `rawSource` name from `rawFilePath` (just the filename, e.g. `chapter-1.md`).
 
+Use the entity config from your prompt to validate entity types — skip entities with types not in the config.
+
+### 2. Batch Search All Entities
+
+Use `kb-search-batch` to check ALL entities at once:
+```
+kb-search-batch universe=<slug> queries='[{"query":"Entity A","type":"characters"},{"query":"Entity B","type":"locations"},...]'
+```
+
+Build the query list from all entities in the extraction file. This is ONE tool call that replaces N individual searches.
+
 ### 3. Process Each Entity
 
-For each entity in the extraction:
+Based on the batch search results, for each entity:
 
-**a) Validate**: Skip if `entityType` is not in the config, or if `value`/`evidence` is empty. Note skipped entities in your output.
-
-**b) Search**: Use `kb-search` to check if this entity already exists:
+**a) If it exists (top match score >= 0.8)**: Use `upsert-entity` to merge:
 ```
-kb-search universe=<slug> query="<entity value>" type="<entityType>"
+kb-update action=upsert-entity universe=<slug> upsertData='{"entityType":"characters","name":"<Existing Name from search>","aliases":["<alias if extraction value differs>"],"newSource":"<rawSource>","newEvidence":"> <evidence quote>","newRelated":{"locations":["[[Sacred Valley]]"]},"overviewAddition":"<new context to add to overview>"}'
 ```
 
-**c) If it exists (score >= 0.8)**: READ the existing file, then UPDATE it:
-- Add the new source to `sources` (no duplicates)
-- Merge new cross-references into `related` (union, no duplicates)
-- Update `updated` date to today
-- Append new evidence under `## Evidence` as a new `### From <rawSource>` subsection
-- Do NOT modify existing evidence or remove existing relationships
-- Rewrite the Overview to incorporate new information
-- Write via `kb-update write-entity`
+The tool handles:
+- Reading the existing file
+- Appending to sources (deduplicating)
+- Merging aliases
+- Unioning related entries
+- Appending evidence under `## Evidence`
+- Updating the overview
+- Writing the validated result
 
-**d) If it doesn't exist**: CREATE a new file:
-- Path: `kb/<slug>/data/<entityType>/<Entity Name>.md`
-- Use the entity file template below
-- Write via `kb-update write-entity`
+You do NOT need to `read` the existing file — the tool does it internally.
+
+**b) If it doesn't exist**: Use `upsert-entity` to create (same call — it creates if file doesn't exist):
+```
+kb-update action=upsert-entity universe=<slug> upsertData='{"entityType":"characters","name":"<Entity Name>","aliases":[],"newSource":"<rawSource>","newEvidence":"> <evidence quote>","newRelated":{"locations":["[[Sacred Valley]]"]},"overviewAddition":"<1-3 sentence overview>"}'
+```
 
 ### 4. Return Summary
 
 After processing all entities, return a brief summary of what was done.
 
-## Entity File Template
+## Cross-Reference Handling
 
-```markdown
----
-entityType: <entity-type>
-name: "<Entity Name>"
-aliases: []
-sources:
-  - "<rawSource>"
-related:
-  <ref-type>:
-    - "[[Referenced Entity]]"
-created: <YYYY-MM-DD>
-updated: <YYYY-MM-DD>
----
+Each entity in the extraction may have cross-reference fields (field names that match entity type names, e.g. `characters`, `locations`). These become `newRelated` entries with wikilink format:
+- Extraction: `"characters": ["Elder Whisper"]`
+- UpsertData: `"newRelated": {"characters": ["[[Elder Whisper]]"]}`
 
-# <Entity Name>
-
-## Overview
-
-<1-3 sentence factual summary based on evidence.>
-
-## Evidence
-
-### From <rawSource>
-> <evidence quote>
-
-## Relationships
-
-- <Natural language relationship with [[wikilink]]>
-```
+Always wrap cross-reference names in `[[]]` for the `newRelated` field.
 
 ## Wikilink Rules
 
-- Use `[[Entity Name]]` for all cross-references in body text and Relationships.
-- In frontmatter `related` arrays, use `"[[Entity Name]]"` (quoted, with brackets).
-- Only use entity type keys that exist in the config for `related` keys.
+- Use `[[Entity Name]]` for all cross-references.
+- In `newRelated`, use `"[[Entity Name]]"` format.
+- Only use entity type keys that exist in the config for `newRelated` keys.
 
 ## Wiki Generation Rules
 
-If wiki generation rules are provided, follow them when structuring content and links. These are advisory preferences (e.g., hub-and-spoke linking, prominent character mentions in overviews). Apply them naturally as you write.
+If wiki generation rules are provided, follow them when writing `overviewAddition` content and structuring relationships. These are advisory preferences (e.g., hub-and-spoke linking, prominent character mentions in overviews). Apply them naturally.
 
 ## Output
 
@@ -144,5 +131,7 @@ Skipped: <N> entities
 - If `kb-update` rejects a write, fix the content and retry.
 - NEVER remove existing evidence or relationships when updating.
 - ALWAYS use today's date for `created` (new) and `updated` fields.
-- The Overview is YOUR synthesis of the evidence — factual, concise.
-- Do NOT hardcode entity types — read the config.
+- The `overviewAddition` is YOUR synthesis of the evidence — factual, concise.
+- Do NOT read `_meta/entities.json` — the config is already in your prompt.
+- Do NOT read existing entity files before updating — `upsert-entity` handles that.
+- **Maximize parallelism**: issue as many `kb-update upsert-entity` calls as possible in a single step.

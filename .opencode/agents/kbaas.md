@@ -59,7 +59,7 @@ When the user asks you to process the outbox, update the KB, ingest extractions,
 ### Step 0: Identify Universe & Gather Context
 
 1. Determine which universe to process. The user may specify a slug, or you can scan `kb/*/` for universes with pending files in `_outbox/`.
-2. Read `kb/<slug>/_meta/entities.json` to understand the entity type configuration.
+2. Read `kb/<slug>/_meta/entities.json` to understand the entity type configuration. **Store the full text** — you will inline it in subagent dispatches so they don't need to read it.
 3. Read `kb/<slug>/_meta/wiki-rules.md` if it exists. This file contains freeform wiki generation instructions (structural preferences, linking patterns, etc.). **Store the full text** — you will pass it to subagent dispatches.
 4. List files in `kb/<slug>/_outbox/` to find pending `.entities.json` files.
 5. Use `kb-index` with action `stats` to understand the current KB state.
@@ -76,11 +76,14 @@ prompt: |
   Extraction file: kb/<slug>/_outbox/<filename>.entities.json
   Entity config path: kb/<slug>/_meta/entities.json
 
+  Entity config (inlined from _meta/entities.json):
+  <paste the full JSON content of entities.json>
+
   Wiki generation rules (from _meta/wiki-rules.md):
   <paste the full text of wiki-rules.md, or "No custom wiki rules defined." if the file doesn't exist>
 
-  Process this extraction file: read it, check existing entities via kb-search,
-  and create/update entity files via kb-update.
+  Process this extraction file: read it, search all entities via kb-search-batch,
+  and create/update entity files via kb-update upsert-entity.
 ```
 
 Process files **one at a time, sequentially**. Each dispatch handles a single extraction file end-to-end (read → search → write). Wait for each to complete before dispatching the next, so later files can find entities created by earlier ones.

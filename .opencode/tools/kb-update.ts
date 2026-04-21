@@ -249,14 +249,17 @@ function validateEntityFrontmatter(
 
   // related: must be Record<string, string[]> with valid keys and wikilink values
   if (attrs.related !== undefined) {
+    // Auto-coerce: if related is missing, null, or not an object, default to {}
     if (!isRecord(attrs.related)) {
+      attrs.related = {};
       errors.push({
         field: "related",
-        message: "related must be an object",
-        severity: "error",
+        message: "related was not an object — coerced to empty {}",
+        severity: "warning",
       });
-    } else {
-      for (const [key, val] of Object.entries(attrs.related)) {
+    }
+    {
+      for (const [key, val] of Object.entries(attrs.related as Record<string, unknown>)) {
         if (!validTypes.includes(key)) {
           errors.push({
             field: `related.${key}`,
@@ -536,6 +539,33 @@ function verifyFile(
 }
 
 // ---------------------------------------------------------------------------
+// Helpers — YAML and Markdown generation for upsert
+// ---------------------------------------------------------------------------
+
+function buildRelatedYaml(related: Record<string, string[]>): string {
+  const entries = Object.entries(related).filter(([, v]) => v.length > 0);
+  if (entries.length === 0) return "related: {}";
+  const lines = ["related:"];
+  for (const [key, vals] of entries) {
+    lines.push(`  ${key}:`);
+    for (const v of vals) {
+      lines.push(`    - "${v}"`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function buildRelationshipLines(related: Record<string, string[]>): string {
+  const lines: string[] = [];
+  for (const [type, vals] of Object.entries(related)) {
+    for (const v of vals) {
+      lines.push(`- ${type}: ${v}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
 // Tool: kb-update
 // ---------------------------------------------------------------------------
 
@@ -543,6 +573,8 @@ export default tool({
   description:
     "Write or verify knowledge base entity files with built-in validation. " +
     "Actions: 'write-entity' validates frontmatter + body structure then writes an entity .md file; " +
+    "'upsert-entity' merges new evidence/sources/relationships into an existing entity (or creates if new) — " +
+    "pass structured JSON instead of full markdown; " +
     "'write-index' validates index frontmatter then writes an _index.md file; " +
     "'verify' validates an existing file, type folder, or entire KB without writing. " +
     "This tool reads _meta/entities.json at runtime to enforce universe-specific rules. " +
@@ -552,9 +584,11 @@ export default tool({
       .string()
       .describe("Universe slug (e.g. 'willverse')"),
     action: tool.schema
-      .enum(["write-entity", "write-index", "verify"])
+      .enum(["write-entity", "upsert-entity", "write-index", "verify"])
       .describe(
-        "Action: 'write-entity' to create/update an entity file, 'write-index' for _index.md, 'verify' for read-only validation"
+        "Action: 'write-entity' to create/update an entity file with full markdown, " +
+        "'upsert-entity' to merge new evidence into existing entity (or create if new) using structured JSON, " +
+        "'write-index' for _index.md, 'verify' for read-only validation"
       ),
     path: tool.schema
       .string()
@@ -569,6 +603,19 @@ export default tool({
       .describe(
         "Full markdown content to write (required for write-entity and write-index). " +
         "Must include YAML frontmatter delimited by --- and the markdown body."
+      ),
+    upsertData: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "JSON string for upsert-entity action. Fields: " +
+        "{\"entityType\": \"characters\", \"name\": \"Wei Shi Lindon\", " +
+        "\"aliases\": [\"Lindon\"], " +
+        "\"newSource\": \"chapter-4.md\", " +
+        "\"newEvidence\": \"> quote from chapter 4\", " +
+        "\"newRelated\": {\"locations\": [\"[[Sacred Valley]]\"]}, " +
+        "\"overviewAddition\": \"Additional context to incorporate into the overview.\"}. " +
+        "The tool handles reading existing file, merging, and writing."
       ),
   },
   async execute(args, context) {
@@ -678,12 +725,296 @@ export default tool({
     }
 
     // -----------------------------------------------------------------------
+    // UPSERT-ENTITY action — structured merge (the efficient path)
+    // -----------------------------------------------------------------------
+    if (action === "upsert-entity") {
+      if (!args.upsertData) {
+        return JSON.stringify({
+          success: false,
+          error: "The 'upsertData' parameter is required for upsert-entity action.",
+        });
+      }
+
+      let upsert: {
+        entityType: string;
+        name: string;
+        aliases?: string[];
+        newSource: string;
+        newEvidence: string;
+        newRelated?: Record<string, string[]>;
+        overviewAddition?: string;
+      };
+      try {
+        upsert = JSON.parse(args.upsertData);
+      } catch (e) {
+        return JSON.stringify({ success: false, error: `Failed to parse upsertData JSON: ${e}` });
+      }
+
+      // Validate required upsert fields
+      if (!upsert.entityType || !upsert.name || !upsert.newSource || !upsert.newEvidence) {
+        return JSON.stringify({
+          success: false,
+          error: "upsertData must include entityType, name, newSource, and newEvidence.",
+        });
+      }
+
+      const validTypes = getValidEntityTypes(config);
+      if (!validTypes.includes(upsert.entityType)) {
+        return JSON.stringify({
+          success: false,
+          error: `Invalid entityType '${upsert.entityType}'. Must be one of: ${validTypes.join(", ")}`,
+        });
+      }
+
+      // Derive path deterministically
+      const kbPath = resolveKbPath(cwd);
+      const derivedRelPath = `${kbPath}${universe}/data/${upsert.entityType}/${upsert.name}.md`;
+      const absPath = join(cwd, derivedRelPath);
+      const today = new Date().toISOString().slice(0, 10);
+      const isNew = !existsSync(absPath);
+
+      let finalContent: string;
+
+      if (isNew) {
+        // CREATE new entity file
+        const relatedYaml = buildRelatedYaml(upsert.newRelated || {});
+        const aliasesYaml = (upsert.aliases && upsert.aliases.length > 0)
+          ? upsert.aliases.map((a) => `  - "${a}"`).join("\n")
+          : "";
+
+        const overviewText = upsert.overviewAddition || `Entity referenced in ${upsert.newSource}.`;
+        const relationshipLines = buildRelationshipLines(upsert.newRelated || {});
+
+        finalContent = [
+          "---",
+          `entityType: ${upsert.entityType}`,
+          `name: "${upsert.name}"`,
+          `aliases:${aliasesYaml ? "\n" + aliasesYaml : " []"}`,
+          `sources:\n  - "${upsert.newSource}"`,
+          relatedYaml,
+          `created: "${today}"`,
+          `updated: "${today}"`,
+          "---",
+          "",
+          `# ${upsert.name}`,
+          "",
+          "## Overview",
+          "",
+          overviewText,
+          "",
+          "## Evidence",
+          "",
+          `### From ${upsert.newSource}`,
+          upsert.newEvidence,
+          "",
+          "## Relationships",
+          "",
+          relationshipLines || `No relationships documented yet.`,
+          "",
+        ].join("\n");
+      } else {
+        // UPDATE existing entity file — merge in new data
+        let existingContent: string;
+        try {
+          existingContent = readFileSync(absPath, "utf-8");
+        } catch (e) {
+          return JSON.stringify({ success: false, error: `Failed to read existing file: ${e}` });
+        }
+
+        let existingParsed: { attributes: Record<string, unknown>; body: string };
+        try {
+          existingParsed = fm<Record<string, unknown>>(existingContent);
+        } catch (e) {
+          return JSON.stringify({ success: false, error: `Failed to parse existing frontmatter: ${e}` });
+        }
+
+        const attrs = existingParsed.attributes as EntityFrontmatter;
+
+        // Merge sources (deduplicate)
+        const sources = Array.isArray(attrs.sources) ? [...attrs.sources] : [];
+        if (!sources.includes(upsert.newSource)) {
+          sources.push(upsert.newSource);
+        }
+
+        // Merge aliases (deduplicate)
+        const aliases = Array.isArray(attrs.aliases) ? [...attrs.aliases] : [];
+        if (upsert.aliases) {
+          for (const alias of upsert.aliases) {
+            if (!aliases.includes(alias) && alias !== upsert.name) {
+              aliases.push(alias);
+            }
+          }
+        }
+
+        // Merge related (union, deduplicate)
+        const existingRelated: Record<string, string[]> = isRecord(attrs.related)
+          ? { ...attrs.related } as Record<string, string[]>
+          : {};
+        if (upsert.newRelated) {
+          for (const [key, vals] of Object.entries(upsert.newRelated)) {
+            if (!existingRelated[key]) {
+              existingRelated[key] = [];
+            }
+            for (const v of vals) {
+              if (!existingRelated[key].includes(v)) {
+                existingRelated[key].push(v);
+              }
+            }
+          }
+        }
+
+        // Build updated body
+        let body = existingParsed.body;
+
+        // Append evidence section
+        const evidenceSection = `### From ${upsert.newSource}\n${upsert.newEvidence}`;
+        const evidenceMarker = "## Evidence";
+        const relationshipsMarker = "## Relationships";
+
+        const evidenceIdx = body.indexOf(evidenceMarker);
+        const relIdx = body.indexOf(relationshipsMarker);
+
+        if (evidenceIdx >= 0 && relIdx >= 0) {
+          // Insert new evidence before ## Relationships
+          const beforeRel = body.slice(0, relIdx).trimEnd();
+          const afterRel = body.slice(relIdx);
+          body = beforeRel + "\n\n" + evidenceSection + "\n\n" + afterRel;
+        } else if (evidenceIdx >= 0) {
+          // No relationships section — append at end of evidence
+          body = body.trimEnd() + "\n\n" + evidenceSection + "\n";
+        } else {
+          // No evidence section at all — append both
+          body = body.trimEnd() + "\n\n## Evidence\n\n" + evidenceSection + "\n";
+        }
+
+        // Update overview if overviewAddition provided
+        if (upsert.overviewAddition) {
+          const overviewIdx = body.indexOf("## Overview");
+          const nextSectionIdx = body.indexOf("## Evidence");
+          if (overviewIdx >= 0 && nextSectionIdx >= 0) {
+            const overviewContent = body.slice(overviewIdx + "## Overview".length, nextSectionIdx).trim();
+            const updatedOverview = overviewContent + " " + upsert.overviewAddition;
+            body = body.slice(0, overviewIdx) + "## Overview\n\n" + updatedOverview + "\n\n" + body.slice(nextSectionIdx);
+          }
+        }
+
+        // Update relationships section with merged related
+        if (upsert.newRelated && Object.keys(upsert.newRelated).length > 0) {
+          const newRelLines = buildRelationshipLines(existingRelated);
+          const relMarkerIdx = body.indexOf(relationshipsMarker);
+          if (relMarkerIdx >= 0) {
+            // Find next section or end
+            const afterRelStart = relMarkerIdx + relationshipsMarker.length;
+            const nextH2 = body.indexOf("\n## ", afterRelStart);
+            const relEnd = nextH2 >= 0 ? nextH2 : body.length;
+            body = body.slice(0, relMarkerIdx) + "## Relationships\n\n" + newRelLines + "\n" + body.slice(relEnd);
+          }
+        }
+
+        // Rebuild frontmatter
+        const relatedYaml = buildRelatedYaml(existingRelated);
+        const aliasesYaml = aliases.length > 0
+          ? aliases.map((a) => `  - "${a}"`).join("\n")
+          : "";
+        const sourcesYaml = sources.map((s) => `  - "${s}"`).join("\n");
+
+        const created = typeof attrs.created === "string" ? attrs.created
+          : ((attrs.created as unknown) instanceof Date ? ((attrs.created as unknown) as Date).toISOString().slice(0, 10) : today);
+
+        finalContent = [
+          "---",
+          `entityType: ${upsert.entityType}`,
+          `name: "${upsert.name}"`,
+          `aliases:${aliasesYaml ? "\n" + aliasesYaml : " []"}`,
+          `sources:\n${sourcesYaml}`,
+          relatedYaml,
+          `created: "${created}"`,
+          `updated: "${today}"`,
+          "---",
+          body,
+        ].join("\n");
+      }
+
+      // Validate the final content before writing
+      let finalParsed: { attributes: Record<string, unknown>; body: string };
+      try {
+        finalParsed = fm<Record<string, unknown>>(finalContent);
+      } catch (e) {
+        return JSON.stringify({ success: false, error: `Generated content has malformed frontmatter: ${e}` });
+      }
+
+      const validationErrors = [
+        ...validateEntityFrontmatter(finalParsed.attributes, absPath, config),
+        ...validateEntityBody(finalParsed.body),
+      ];
+      const hardErrors = validationErrors.filter((e) => e.severity === "error");
+      const warnings = validationErrors.filter((e) => e.severity === "warning");
+
+      if (hardErrors.length > 0) {
+        return JSON.stringify(
+          {
+            success: false,
+            action: "upsert-entity",
+            path: derivedRelPath,
+            error: "Validation failed on generated content.",
+            errors: hardErrors,
+            warnings,
+          },
+          null,
+          2
+        );
+      }
+
+      // Ensure parent directory exists
+      const parentDir = dirname(absPath);
+      if (!existsSync(parentDir)) {
+        mkdirSync(parentDir, { recursive: true });
+      }
+
+      try {
+        writeFileSync(absPath, finalContent, "utf-8");
+      } catch (e) {
+        return JSON.stringify({ success: false, error: `Failed to write file: ${e}` });
+      }
+
+      return JSON.stringify(
+        {
+          success: true,
+          action: "upsert-entity",
+          path: derivedRelPath,
+          operation: isNew ? "created" : "updated",
+          warnings: warnings.length > 0 ? warnings : undefined,
+          message: `${isNew ? "Created" : "Updated"} ${derivedRelPath} successfully.`,
+        },
+        null,
+        2
+      );
+    }
+
+    // -----------------------------------------------------------------------
     // WRITE actions (write-entity / write-index)
     // -----------------------------------------------------------------------
-    if (!relPath) {
+
+    // Auto-derive path for write-entity when omitted
+    let effectivePath = relPath;
+    if (!effectivePath && action === "write-entity" && content) {
+      // Try to derive from content frontmatter
+      try {
+        const tempParsed = fm<Record<string, unknown>>(content);
+        const a = tempParsed.attributes;
+        if (typeof a.entityType === "string" && typeof a.name === "string") {
+          const kbPath = resolveKbPath(cwd);
+          effectivePath = `${kbPath}${universe}/data/${a.entityType}/${a.name}.md`;
+        }
+      } catch {
+        // Fall through to error below
+      }
+    }
+
+    if (!effectivePath) {
       return JSON.stringify({
         success: false,
-        error: "The 'path' parameter is required for write actions.",
+        error: "The 'path' parameter is required for write actions (or provide entityType + name in frontmatter for auto-derivation).",
       });
     }
 
@@ -694,7 +1025,7 @@ export default tool({
       });
     }
 
-    const absPath = join(cwd, relPath);
+    const absPath = join(cwd, effectivePath);
 
     // Parse the incoming content's frontmatter
     let parsed: { attributes: Record<string, unknown>; body: string };
@@ -727,7 +1058,7 @@ export default tool({
         {
           success: false,
           action,
-          path: relPath,
+          path: effectivePath,
           error: "Validation failed. Fix these errors before writing.",
           errors: hardErrors,
           warnings,
@@ -753,16 +1084,14 @@ export default tool({
       });
     }
 
-    const isNew = !existsSync(absPath);
-    // Re-check: the write just happened so the file definitely exists now
     return JSON.stringify(
       {
         success: true,
         action,
-        path: relPath,
-        operation: isNew ? "created" : "written",
+        path: effectivePath,
+        operation: "written",
         warnings: warnings.length > 0 ? warnings : undefined,
-        message: `File ${relPath} written successfully.${warnings.length > 0 ? ` ${warnings.length} warning(s).` : ""}`,
+        message: `File ${effectivePath} written successfully.${warnings.length > 0 ? ` ${warnings.length} warning(s).` : ""}`,
       },
       null,
       2
