@@ -1,9 +1,5 @@
 import { Command } from "commander";
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { resolveKbPath } from "../../../config/kbaas";
-import { db } from "../../../db";
-import { universes } from "../../../db/schema";
+import { createUniverse } from "../../../services/universe";
 
 export const createUniverseCommand = new Command("create")
   .description("Create a universe")
@@ -11,12 +7,10 @@ export const createUniverseCommand = new Command("create")
   .requiredOption("--slug <slug>", "Universe slug")
   .action(async (options: { name: string; slug: string }) => {
     try {
-      await db.insert(universes).values({
+      await createUniverse({
         name: options.name,
         slug: options.slug,
       });
-
-      mkdirSync(join(resolveKbPath(), options.slug), { recursive: true });
 
       console.log(`Created universe '${options.name}' with slug '${options.slug}'.`);
     } catch (error) {

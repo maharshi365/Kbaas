@@ -1,10 +1,5 @@
 import { Command } from "commander";
-import { rmSync } from "node:fs";
-import { join } from "node:path";
-import { inArray } from "drizzle-orm";
-import { resolveKbPath } from "../../../config/kbaas";
-import { db } from "../../../db";
-import { universes } from "../../../db/schema";
+import { deleteUniversesBySlugs } from "../../../services/universe";
 
 const collectSlugs = (value: string, previous: string[]): string[] => {
   const slugs = value
@@ -31,31 +26,18 @@ export const deleteUniverseCommand = new Command("delete")
       return;
     }
 
-    const rows = await db
-      .select()
-      .from(universes)
-      .where(inArray(universes.slug, slugs));
+    const result = await deleteUniversesBySlugs(slugs);
 
-    if (rows.length === 0) {
+    if (result.foundSlugs.length === 0) {
       console.error(`No universes found for slugs: ${slugs.join(", ")}.`);
       process.exitCode = 1;
       return;
     }
 
-    const foundSlugs = rows.map((row) => row.slug);
-    const missingSlugs = slugs.filter((slug) => !foundSlugs.includes(slug));
+    console.log(`Deleted universes: ${result.foundSlugs.join(", ")}.`);
 
-    await db.delete(universes).where(inArray(universes.slug, foundSlugs));
-
-    const kbRoot = resolveKbPath();
-    for (const slug of foundSlugs) {
-      rmSync(join(kbRoot, slug), { recursive: true, force: true });
-    }
-
-    console.log(`Deleted universes: ${foundSlugs.join(", ")}.`);
-
-    if (missingSlugs.length > 0) {
-      console.error(`Universe slugs not found: ${missingSlugs.join(", ")}.`);
+    if (result.missingSlugs.length > 0) {
+      console.error(`Universe slugs not found: ${result.missingSlugs.join(", ")}.`);
       process.exitCode = 1;
     }
   });
