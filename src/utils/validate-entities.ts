@@ -1,0 +1,70 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { z } from "zod";
+
+const nonEmptyStringSchema = z.string().trim().min(1);
+
+const entitySchema = z.object({
+  name: nonEmptyStringSchema,
+  description: nonEmptyStringSchema,
+  examples: z.array(nonEmptyStringSchema).min(1),
+  rules: z.array(nonEmptyStringSchema).optional(),
+  invalid: z.array(nonEmptyStringSchema).optional(),
+  requiredEntities: z.array(nonEmptyStringSchema).optional(),
+});
+
+export const entitiesFileZodSchema = z
+  .object({
+    schema: z.string().trim().url(),
+    value: z.array(entitySchema),
+  })
+  .superRefine((data, ctx) => {
+    const names = new Set(data.value.map((entity) => entity.name));
+
+    for (const [index, entity] of data.value.entries()) {
+      if (!entity.requiredEntities) {
+        continue;
+      }
+
+      for (const requiredEntity of entity.requiredEntities) {
+        if (!names.has(requiredEntity)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Unknown required entity '${requiredEntity}'.`,
+            path: ["value", index, "requiredEntities"],
+          });
+        }
+
+        if (requiredEntity === entity.name) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Entity cannot require itself.",
+            path: ["value", index, "requiredEntities"],
+          });
+        }
+      }
+    }
+  });
+
+export type EntitiesFile = z.infer<typeof entitiesFileZodSchema>;
+
+export const validateEntitiesFile = (filePath: string): EntitiesFile => {
+  const absolutePath = resolve(filePath);
+
+  let parsedJson: unknown;
+
+  try {
+    parsedJson = JSON.parse(readFileSync(absolutePath, "utf-8"));
+  } catch {
+    throw new Error(`Invalid JSON in ${absolutePath}.`);
+  }
+
+  const result = entitiesFileZodSchema.safeParse(parsedJson);
+
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    throw new Error(`Invalid entities file: ${issue?.message ?? "validation failed"}.`);
+  }
+
+  return result.data;
+};
