@@ -5,13 +5,19 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "bun build ./index.ts --compile --outfile ./kbaas"
+    "build": "bun build ./index.ts --compile --outfile ./kbaas",
+    "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=src/db/drizzle.config.ts"
   },
   "dependencies": {
-    "commander": "^14.0.3"
+    "better-sqlite3": "^12.9.0",
+    "commander": "^14.0.3",
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/node": "^25.6.0",
+    "drizzle-kit": "^0.31.10"
   },
   "peerDependencies": {
     "typescript": "^5"
