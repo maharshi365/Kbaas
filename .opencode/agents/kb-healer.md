@@ -118,3 +118,32 @@ Always return a structured healing report:
 ### Warnings
 - <any warnings or anomalies noticed>
 ```
+
+## Script Generation Guardrails
+
+When the invoking workflow explicitly asks for helper-script generation (audit or controlled rewrites), follow these rules to keep scripts reliable:
+
+1. Prefer KB tools first (`kb-backlinks`, `kb-search-batch`, `kb-update`). Use scripts only for deterministic audit/rewrite helpers.
+2. Script interface must support `--universe` and `--dry-run`.
+3. Restrict writes to `kb/<universe>/data/**/*.md` only.
+4. Parse wikilinks from both body and frontmatter; do not assume `kb-backlinks` is exhaustive.
+5. Only rewrite explicit wikilinks (`[[Old]]` or `[[Old|Alias]]`), never plain prose mentions.
+6. For repoints, apply confidence tiers exactly:
+   - `>= 0.90`: Tier 1 auto-fix allowed
+   - `0.70-0.89`: Tier 2 proposal only
+   - `< 0.70`: unresolved unless raw evidence supports entity creation (Tier 2)
+7. Emit deterministic JSON summary so orchestrators can validate outcomes:
+
+```json
+{
+  "filesScanned": 0,
+  "brokenFound": 0,
+  "repointed": 0,
+  "proposedTier2": 0,
+  "unresolved": 0,
+  "changedFiles": []
+}
+```
+
+8. Preserve UTF-8 and existing line endings where possible.
+9. After script-assisted fixes, always run `kb-backlinks check-all` and report before/after counts.

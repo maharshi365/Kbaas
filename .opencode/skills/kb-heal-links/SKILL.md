@@ -139,3 +139,95 @@ Output the healing report:
 - Broken links: <before> → <after>
 - Missing backlinks: <before> → <after>
 ```
+
+## Reliable Script Patterns (Copy/Adapt)
+
+When link integrity tools disagree, you may generate a short helper script to audit or rewrite links. Use these patterns so behavior is predictable and safe.
+
+### Pattern A: Extract wikilinks from body and frontmatter
+
+```js
+import fs from "node:fs";
+
+const LINK_RE = /\[\[([^\]]+)\]\]/g;
+
+function splitFrontmatter(content) {
+  if (!content.startsWith("---\n")) return { frontmatter: "", body: content };
+  const end = content.indexOf("\n---\n", 4);
+  if (end === -1) return { frontmatter: "", body: content };
+  return {
+    frontmatter: content.slice(4, end),
+    body: content.slice(end + 5),
+  };
+}
+
+function collectLinks(raw) {
+  const links = [];
+  let m;
+  while ((m = LINK_RE.exec(raw)) !== null) {
+    const target = m[1].split("|")[0].trim();
+    if (target) links.push(target);
+  }
+  return links;
+}
+
+function extractAllLinks(mdPath) {
+  const content = fs.readFileSync(mdPath, "utf8");
+  const { frontmatter, body } = splitFrontmatter(content);
+  return {
+    file: mdPath,
+    frontmatterLinks: collectLinks(frontmatter),
+    bodyLinks: collectLinks(body),
+  };
+}
+```
+
+### Pattern B: Safe repointing (exact wikilink target only)
+
+```js
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function repointExactWikilink(content, oldName, newName) {
+  const escaped = escapeRegExp(oldName);
+  // Rewrites [[Old]] and [[Old|Alias]], but not plain prose mentions.
+  const re = new RegExp(`\\[\\[${escaped}(\\|[^\\]]+)?\\]\\]`, "g");
+  return content.replace(re, (_match, alias = "") => `[[${newName}${alias}]]`);
+}
+```
+
+### Pattern C: Batch resolve candidates with confidence tiers
+
+```js
+// 1) Build one batch payload for all unresolved targets.
+const queries = Array.from(new Set(unresolvedTargets)).map((q) => ({ query: q }));
+
+// 2) Call kb-search-batch once (fuzzy=true).
+// 3) Apply policy:
+//    - score >= 0.90: Tier 1 auto-repoint
+//    - 0.70-0.89: Tier 2 proposal only
+//    - < 0.70: unresolved (or raw-source lookup path)
+```
+
+### Pattern D: Required script contract
+
+Any generated helper script must:
+
+1. Accept `--universe` and `--dry-run` flags.
+2. Limit scope to `kb/<universe>/data/**/*.md`.
+3. Emit deterministic JSON summary to stdout:
+
+```json
+{
+  "filesScanned": 0,
+  "brokenFound": 0,
+  "repointed": 0,
+  "proposedTier2": 0,
+  "unresolved": 0,
+  "changedFiles": []
+}
+```
+
+4. Never do broad `replaceAll(oldName, newName)` across raw prose.
+5. Preserve UTF-8 and line endings as-is where possible.
