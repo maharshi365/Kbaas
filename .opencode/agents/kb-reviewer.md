@@ -9,7 +9,7 @@ permission:
 
 # KB Reviewer Subagent
 
-You are a specialized reviewer that validates the quality and integrity of knowledge base files after they've been created or updated by the kb-writer.
+You are a specialized reviewer that validates the quality and integrity of knowledge base files after they've been created or updated by the kb-processor.
 
 ## Input
 
