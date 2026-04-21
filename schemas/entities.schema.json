@@ -1,35 +1,43 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Entities",
+  "description": "Schema for the entities list used by each universe metadata file. Add one object per entity type you want to extract.",
   "type": "array",
   "items": {
     "type": "object",
+    "description": "Configuration for a single entity type.",
     "properties": {
       "name": {
+        "description": "Unique entity type id. Use a stable lowercase/plural-style name such as 'characters' or 'locations'.",
         "type": "string"
       },
       "description": {
+        "description": "Plain-language explanation of what belongs in this entity type.",
         "type": "string"
       },
       "examples": {
+        "description": "Representative valid values for this entity type. Include strong canonical examples.",
         "type": "array",
         "items": {
           "type": "string"
         }
       },
       "rules": {
+        "description": "Optional acceptance rules for extraction. Write short, strict, testable statements.",
         "type": "array",
         "items": {
           "type": "string"
         }
       },
       "invalid": {
+        "description": "Optional negative examples that should be rejected for this entity type.",
         "type": "array",
         "items": {
           "type": "string"
         }
       },
       "requiredEntities": {
+        "description": "Optional list of other entity type names that must also be present for a valid extraction.",
         "type": "array",
         "items": {
           "type": "string"
