@@ -24,6 +24,15 @@ const ENTITIES_FILE_NAME = "entities.json";
 const ENTITIES_SCHEMA_URL =
   "https://raw.githubusercontent.com/maharshi365/Kbaas/main/schemas/entities.schema.json";
 
+const GOOGLE_MODEL = "gemini-flash-latest";
+const EXTRACTOR_PROMPT_PATH = join(
+  process.cwd(),
+  "src",
+  "prompts",
+  "extractor-prompt.md",
+);
+
+
 const ENTITIES_FILE_TEMPLATE = {
   schema: ENTITIES_SCHEMA_URL,
   value: [] as unknown[],
@@ -50,13 +59,6 @@ type LoadUniverseFileResult = {
   rawPaths: string[];
 };
 
-const GOOGLE_MODEL = process.env.KBAAS_GEMINI_MODEL ?? "gemini-2.0-flash";
-const EXTRACTOR_PROMPT_PATH = join(
-  process.cwd(),
-  "src",
-  "prompts",
-  "extractor-prompt.md",
-);
 
 const getAllFiles = (directoryPath: string): string[] => {
   const entries = readdirSync(directoryPath, { withFileTypes: true });
