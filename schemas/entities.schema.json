@@ -16,6 +16,18 @@
         "items": {
           "type": "string"
         }
+      },
+      "rules": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "invalidStrings": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
       }
     },
     "required": [
