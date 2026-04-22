@@ -3,17 +3,14 @@ name: kb-heal-orphans
 description: Detect orphaned entities (zero incoming links) and reconnect them by searching raw source data for missed connections. Creates missing cross-references to integrate orphans into the knowledge graph.
 ---
 
-# /kb-heal-orphans
+# kb-heal-orphans
 
 Detect entities with zero incoming links (orphans) in a knowledge base universe and attempt to reconnect them by searching the raw source files (`_raw/`) for mentions that the extraction pipeline missed. Creates missing cross-references to integrate orphans into the knowledge graph.
 
-## Usage
+## Invocation Inputs
 
-```
-/kb-heal-orphans                       # heal orphans in the default universe
-/kb-heal-orphans <universe>            # heal orphans in a specific universe
-/kb-heal-orphans <universe> --approve-tier2  # allow Tier 2 operations (entity create/merge/delete/rehome)
-```
+- `universe` (optional): universe slug; if omitted, resolve from `.kbaas/kbaas.json` or available `kb/` directories.
+- `approveTier2` (optional boolean): when true, Tier 2 operations are allowed (entity create/merge/delete/rehome).
 
 ## Two-Tier Policy
 
@@ -25,9 +22,9 @@ Detect entities with zero incoming links (orphans) in a knowledge base universe 
 ## Recommended Order
 
 If running all three healing skills, run them in this order:
-1. `/kb-dedup` — merge duplicates first (reduces false orphans)
-2. `/kb-heal-links` — fix link integrity (may resolve some orphans)
-3. **`/kb-heal-orphans`** — reconnect remaining orphans (you are here)
+1. `kb-dedup` skill — merge duplicates first (reduces false orphans)
+2. `kb-heal-links` skill — fix link integrity (may resolve some orphans)
+3. **`kb-heal-orphans` skill** — reconnect remaining orphans (you are here)
 
 ## What You Must Do When Invoked
 
@@ -95,7 +92,7 @@ kb-update action=upsert-entity universe=<slug>
 **3b. For self-sufficient orphans (have outgoing links but no incoming):**
 - Check each entity the orphan links to
 - For each, verify if a backlink exists. If not, add one via `kb-update upsert-entity`
-- This is similar to the missing backlinks fix in `/kb-heal-links` but targeted at orphans specifically
+- This is similar to the missing backlinks fix in the `kb-heal-links` skill but targeted at orphans specifically
 
 **Parallelism:** Multiple `upsert-entity` calls for DIFFERENT entities can run in parallel.
 

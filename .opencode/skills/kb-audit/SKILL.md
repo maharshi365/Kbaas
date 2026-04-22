@@ -3,20 +3,17 @@ name: kb-audit
 description: Audit KB entity quality by questioning the researcher and comparing to raw source ground truth. Detects negative signals (unsupported claims, hallucinated relationships), scores entity completeness, and applies improvements.
 ---
 
-# /kb-audit
+# kb-audit
 
 Audit the quality of knowledge base entities by interrogating the researcher agent with targeted questions and comparing answers to raw source ground truth. Identifies content gaps, detects **negative signals** (hallucinated relationships, fabricated evidence, unsupported claims), scores completeness, and applies safe improvements.
 
-## Usage
+## Invocation Inputs
 
-```
-/kb-audit                                  # audit a smart-selected entity in the default universe
-/kb-audit <universe>                       # audit in a specific universe
-/kb-audit <universe> --entity="Lindon"     # audit a specific entity
-/kb-audit <universe> --type=characters     # constrain selection to an entity type
-/kb-audit <universe> --count=3             # audit N entities in sequence
-/kb-audit <universe> --approve-tier2       # allow Tier 2 improvements (entity creation, major rewrites)
-```
+- `universe` (optional): universe slug; if omitted, resolve from `.kbaas/kbaas.json` or available `kb/` directories.
+- `entity` (optional string): audit a specific entity by name.
+- `type` (optional string): constrain selection to one entity type.
+- `count` (optional number): audit N entities sequentially.
+- `approveTier2` (optional boolean): when true, Tier 2 improvements are allowed (entity creation, major rewrites, removals).
 
 ## Two-Tier Policy
 
@@ -27,12 +24,12 @@ Audit the quality of knowledge base entities by interrogating the researcher age
 
 ## Recommended Use
 
-Run `/kb-audit` periodically after pipeline processing to catch content quality issues that structural healing skills don't address:
+Run the `kb-audit` skill periodically after pipeline processing to catch content quality issues that structural healing skills don't address:
 
-1. `/kb-dedup` — merge duplicates
-2. `/kb-heal-links` — fix link integrity
-3. `/kb-heal-orphans` — reconnect orphans
-4. **`/kb-audit`** — audit content quality (you are here)
+1. `kb-dedup` skill — merge duplicates
+2. `kb-heal-links` skill — fix link integrity
+3. `kb-heal-orphans` skill — reconnect orphans
+4. **`kb-audit` skill** — audit content quality (you are here)
 
 The audit is also useful after ingesting new source material to verify the pipeline captured key facts.
 

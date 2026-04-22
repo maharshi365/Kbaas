@@ -309,7 +309,7 @@ Always return a structured report:
 - Rewrite overview claim "..." — not grounded in source text (UNSUPPORTED_CLAIM)
 
 ### Recommendations
-- <suggested follow-up actions, e.g., "Run /kb-heal-links to fix backlinks discovered during audit">
+- <suggested follow-up actions, e.g., "Invoke the kb-heal-links skill to fix backlinks discovered during audit">
 - <entity-specific improvement suggestions>
 - <if many negative signals: "Consider re-processing source files with stricter extraction to reduce hallucinated connections">
 ```

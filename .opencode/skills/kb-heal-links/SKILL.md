@@ -3,17 +3,14 @@ name: kb-heal-links
 description: Detect and fix broken/dead wikilinks and missing backlinks in the knowledge base. Repoints mismatched links, creates missing entities from raw data, and repairs bidirectional link gaps.
 ---
 
-# /kb-heal-links
+# kb-heal-links
 
 Detect and repair all link integrity issues in a knowledge base universe: broken wikilinks (pointing to non-existent entities), missing backlinks (A links to B but B doesn't link back), and dead references that can be repointed to existing entities via fuzzy matching.
 
-## Usage
+## Invocation Inputs
 
-```
-/kb-heal-links                          # heal links in the default universe
-/kb-heal-links <universe>               # heal links in a specific universe
-/kb-heal-links <universe> --approve-tier2  # allow Tier 2 operations (entity create/merge/delete/rehome)
-```
+- `universe` (optional): universe slug; if omitted, resolve from `.kbaas/kbaas.json` or available `kb/` directories.
+- `approveTier2` (optional boolean): when true, Tier 2 operations are allowed (entity create/merge/delete/rehome).
 
 ## Two-Tier Policy
 
@@ -25,9 +22,9 @@ Detect and repair all link integrity issues in a knowledge base universe: broken
 ## Recommended Order
 
 If running all three healing skills, run them in this order:
-1. `/kb-dedup` — merge duplicates first (reduces broken links and orphans)
-2. **`/kb-heal-links`** — fix link integrity (you are here)
-3. `/kb-heal-orphans` — reconnect orphaned entities last
+1. `kb-dedup` skill — merge duplicates first (reduces broken links and orphans)
+2. **`kb-heal-links` skill** — fix link integrity (you are here)
+3. `kb-heal-orphans` skill — reconnect orphaned entities last
 
 ## What You Must Do When Invoked
 

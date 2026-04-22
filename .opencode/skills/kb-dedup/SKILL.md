@@ -3,18 +3,15 @@ name: kb-dedup
 description: Detect and merge duplicate entities in the knowledge base. Finds entities with overlapping names/aliases across files and type folders, merges them atomically, and rewrites all references.
 ---
 
-# /kb-dedup
+# kb-dedup
 
 Detect duplicate entities in a knowledge base universe and merge them using the atomic `merge-entities` tool action. Handles same-name duplicates, "The X" vs "X" variants, alias overlaps, cross-type duplicates, and high fuzzy-match pairs.
 
-## Usage
+## Invocation Inputs
 
-```
-/kb-dedup                              # dedup the default universe
-/kb-dedup <universe>                   # dedup a specific universe
-/kb-dedup <universe> --dry-run         # detect only, do not merge
-/kb-dedup <universe> --approve-tier2   # allow Tier 2 operations (merges/deletes)
-```
+- `universe` (optional): universe slug; if omitted, resolve from `.kbaas/kbaas.json` or available `kb/` directories.
+- `dryRun` (optional boolean): when true, detect only and do not merge.
+- `approveTier2` (optional boolean): when true, Tier 2 operations are allowed (merges/deletes).
 
 ## Two-Tier Policy
 
@@ -26,9 +23,9 @@ Detect duplicate entities in a knowledge base universe and merge them using the 
 ## Recommended Order
 
 If running all three healing skills, run them in this order:
-1. **`/kb-dedup`** — merge duplicates first (you are here)
-2. `/kb-heal-links` — fix link integrity after dedup
-3. `/kb-heal-orphans` — reconnect orphaned entities last
+1. **`kb-dedup` skill** — merge duplicates first (you are here)
+2. `kb-heal-links` skill — fix link integrity after dedup
+3. `kb-heal-orphans` skill — reconnect orphaned entities last
 
 ## What You Must Do When Invoked
 
