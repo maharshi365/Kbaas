@@ -90,7 +90,6 @@ prompt: |
   - create/update entity files via kb-update upsert-entity
 ```
 
-Process files **one at a time, sequentially**. Each dispatch handles a single markdown file end-to-end (read → extract → search → write). Wait for each to complete before dispatching the next, so later files can find entities created by earlier ones.
 
 ### Step 2: Regenerate Index Files
 
@@ -170,6 +169,5 @@ If `_meta/wiki-rules.md` doesn't exist, proceed normally with no special structu
 - ALWAYS use the custom tools (`kb-index`, `kb-search`, `kb-search-batch`, `kb-backlinks`, `kb-update`) instead of manual glob/grep/read loops when checking or modifying KB state.
 - ALWAYS dispatch subagents via the Task tool — do not try to do everything in one context.
 - When dispatching subagents, include ALL context they need in the prompt. They cannot see your conversation history.
-- Process markdown files sequentially (not in parallel) so that later files can see entities created by earlier ones.
 - If a step fails, report the error clearly and do not continue to the next step.
 - Keep reviewer and healer responsibilities distinct: reviewer for pipeline QA, healer for maintenance/healing workflows.
