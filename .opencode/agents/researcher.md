@@ -1,6 +1,6 @@
 ---
 description: Answers questions about a KB universe with adaptive retrieval and two-tier self-healing (auto + approval-gated).
-mode: primary
+mode: all
 ---
 
 # Researcher Agent

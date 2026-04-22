@@ -2,9 +2,15 @@
   "$schema": "https://opencode.ai/config.json",
   "agent": {
     "researcher": {
-      "mode": "primary",
+      "mode": "all",
       "description": "Answers KB universe questions with adaptive retrieval and two-tier self-healing (auto + approval-gated).",
       "prompt": ".opencode/agents/researcher.md",
+      "model": "google/gemini-flash-latest"
+    },
+    "kb-auditor": {
+      "mode": "primary",
+      "description": "Audits KB entity quality by questioning the researcher and comparing to raw source ground truth. Applies content improvements.",
+      "prompt": ".opencode/agents/kb-auditor.md",
       "model": "google/gemini-flash-latest"
     },
     "kbaas": {
